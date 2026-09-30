@@ -7,7 +7,7 @@
 #   brew install ridefollow/tap/ridefollow-cli      # once the tap is published
 #
 # Or straight from this file, without a tap:
-#   brew install --formula ./cli/Formula/ridefollow-cli.rb
+#   brew install --formula ./Formula/ridefollow-cli.rb
 require "language/node"
 
 class RidefollowCli < Formula
