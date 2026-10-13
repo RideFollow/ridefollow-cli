@@ -4,7 +4,7 @@ import { main } from '../src/index.js';
 main(process.argv.slice(2)).catch((err) => {
   // Restore the terminal in case the UI was mid-render, then report cleanly.
   try {
-    process.stdout.write('\x1b[?25h\x1b[?1049l');
+    if (process.stdout.isTTY) process.stdout.write('\x1b[?25h\x1b[?1049l');
   } catch {
     /* ignore */
   }
