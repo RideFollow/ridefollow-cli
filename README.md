@@ -81,11 +81,13 @@ ridefollow-cli login --user <username> --password <password>
 ridefollow-cli nearby Turin           # who's riding in a city right now (-w to keep it live)
 ridefollow-cli area "Milan"           # the city's land leaderboard: top riders + crews
 ridefollow-cli me                     # your public id, visibility, tiles held, invites
+ridefollow-cli inbox                  # crossed paths, tiles stolen from you, friends who joined (-w: live)
 ridefollow-cli invite                 # your invite link — friends who join unlock rewards
 ridefollow-cli invite redeem <code>   # joined with a friend's code or link
 ridefollow-cli room create "Sunday loop"
 ridefollow-cli room join ABC-123      # add --watch to follow the group live
 ridefollow-cli room watch ABC-123     # members' positions + distance to the meeting point
+ridefollow-cli room pin ABC-123 45.4655,9.1880   # set the meeting point (`clear` removes it)
 ridefollow-cli room leave ABC-123
 ```
 
@@ -103,12 +105,15 @@ the app's *Nearby* tab does. Add `--json` to any social command for scripting.
 | `-n, --name` | `RIDEFOLLOW_NAME` | Your name in a group ride |
 | `-w, --watch` / `--json` | | Live view until `q` / raw JSON |
 
+Visibility, land, crew and colour are set in the app (it owns the profile and
+republishes it), so `me` shows them read-only.
+
 `login` checks the account against `/v2/social/me` before saving it to
 `~/.config/ridefollow/cli.json` (mode `600`); `logout` deletes it. How it maps
 onto the backend: `/v2` HTTP for the few server decisions (public id, rooms,
 invites, a leaderboard snapshot) and the retained MQTT topics for everything
 live — `area/<city>/+/presence/+`, `area/<city>/meta|feed`,
-`rooms/<code>/presence/+|pin|meta`. Share-link following (above) is unchanged
+`rooms/<code>/presence/+|pin|meta`, `social/<you>/inbox`. Share-link following (above) is unchanged
 and still needs no account.
 
 ## How it works

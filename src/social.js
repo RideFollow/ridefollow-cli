@@ -231,6 +231,41 @@ export function feedText(e) {
   return `${e.byName} took ${e.tiles} tile${e.tiles === 1 ? '' : 's'} from ${e.fromName || 'someone'}`;
 }
 
+/** `social/<me>/inbox` — my private events, newest first. */
+export function decodeInbox(raw) {
+  const j = obj(raw);
+  if (!Array.isArray(j)) return [];
+  return j
+    .filter((e) => e && typeof e.type === 'string')
+    .map((e) => ({
+      type: e.type,
+      withName: str(e.with && e.with.name, 'a rider'),
+      byName: str(e.by && e.by.name, 'Someone'),
+      tiles: num(e.tiles) ?? 0,
+      gh4: str(e.gh4),
+      gh6: str(e.gh6),
+      tsMs: num(e.ts),
+    }));
+}
+
+export function inboxText(e) {
+  switch (e.type) {
+    case 'encounter':
+      return `you crossed paths with ${e.withName}${e.gh6 ? ` (near cell ${e.gh6})` : ''}`;
+    case 'stolen':
+      return `${e.byName} took ${e.tiles} of your tile${e.tiles === 1 ? '' : 's'}${e.gh4 ? ` in ${e.gh4}` : ''}`;
+    case 'invite':
+      return `${e.withName} joined RideFollow with your invite 🎉`;
+    default:
+      return e.type;
+  }
+}
+
+export function renderInbox(events, now = Date.now()) {
+  if (!events.length) return ['INBOX', '  nothing yet — encounters, stolen tiles and friends joining show up here'];
+  return ['INBOX', ...events.map((e) => `  ${pad(ago(e.tsMs, now), 4)} ${inboxText(e)}`)];
+}
+
 /** `rooms/<code>/presence/<pid>` — a group member's precise position. */
 export function decodeRoomPosition(pid, raw) {
   const j = obj(raw);
@@ -292,7 +327,8 @@ export function renderNearby({ place, riders, meta, feed, now = Date.now() }) {
   if (feed && feed.length) {
     out.push('');
     out.push('LATEST');
-    for (const e of feed.slice(-5).reverse()) out.push(`  ${pad(ago(e.tsMs, now), 4)} ${feedText(e)}`);
+    // The server keeps feeds newest-first.
+    for (const e of feed.slice(0, 5)) out.push(`  ${pad(ago(e.tsMs, now), 4)} ${feedText(e)}`);
   }
   return out;
 }

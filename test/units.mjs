@@ -11,7 +11,7 @@ import { resolveRide, fetchHistory, fetchRoute } from '../src/api.js';
 import * as geohash from '../src/geohash.js';
 import {
   socialClient, resolveArea, parsePlaces, normalizeRoomCode, normalizeInviteCode, formatRoomCode,
-  decodePresence, decodeAreaMeta, decodeFeed, decodeRoomPosition, decodePin, feedText,
+  decodePresence, decodeAreaMeta, decodeFeed, decodeRoomPosition, decodePin, feedText, decodeInbox, inboxText, renderInbox,
   renderNearby, renderBoard, renderRoom, renderMe,
 } from '../src/social.js';
 import { brokerUrl, resolveAccount, configPath } from '../src/commands.js';
@@ -285,6 +285,26 @@ console.log('V2 · wire formats + views');
   assert.ok(lines.includes('2 riding now'), 'live list beats a stale board count');
   assert.ok(lines.includes('1. Anna [navigli]') && lines.includes('TOP CREWS') && lines.includes('LATEST'));
   assert.ok(renderNearby({ place, riders: new Map(), meta: null, feed: [], now }).join('\n').includes('nobody is riding here'));
+  // Feeds arrive newest-first (the server appendlefts): show the first five.
+  const many = Array.from({ length: 7 }, (_, i) => ({ type: 'steal', byName: `R${i}`, fromName: 'X', tiles: 1, tsMs: now - i * 60000 }));
+  const latest = renderNearby({ place, riders: new Map(), meta: null, feed: many, now }).join('\n');
+  assert.ok(latest.includes('R0 took') && latest.includes('R4 took') && !latest.includes('R5 took'), 'newest five shown');
+  assert.ok(latest.indexOf('R0 took') < latest.indexOf('R4 took'), 'newest first');
+
+  const inbox = decodeInbox(JSON.stringify([
+    { type: 'stolen', tiles: 3, by: { pid: 'pabc', name: 'Carl' }, gh4: 'u0nd', ts: now },
+    { type: 'encounter', gh6: 'u0nd9h', with: { pid: 'pdef', name: 'Anna' }, ts: now - 7200000 },
+    { type: 'invite', with: { pid: 'pghi', name: 'Dora' }, ts: now - 86400000 * 2 },
+    { nope: true },
+  ]));
+  assert.equal(inbox.length, 3);
+  assert.equal(inboxText(inbox[0]), 'Carl took 3 of your tiles in u0nd');
+  assert.equal(inboxText(inbox[1]), 'you crossed paths with Anna (near cell u0nd9h)');
+  assert.ok(inboxText(inbox[2]).startsWith('Dora joined RideFollow with your invite'));
+  const inboxLines = renderInbox(inbox, now).join('\n');
+  assert.ok(inboxLines.includes('now  Carl took') && inboxLines.includes('2h   you crossed') && inboxLines.includes('2d   Dora'));
+  assert.ok(renderInbox([], now).join('\n').includes('nothing yet'));
+  assert.deepEqual(decodeInbox('garbage'), []);
   assert.ok(renderBoard({ ...meta, top: [], crews: [] }, { place }).join('\n').includes('no land claimed here yet'));
 
   const room = { code: 'ABC123', name: 'Sunday loop', expiresAt: now + 3 * 3600000 + 5 * 60000, you: { pid: 'pme' },

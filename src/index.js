@@ -30,9 +30,11 @@ SOCIAL (V2 — signed in as your RideFollow rider account)
   ridefollow-cli nearby <city | lat,lng> [-w]      who's riding in a city now
   ridefollow-cli area <city | lat,lng>             the city's land leaderboard
   ridefollow-cli me                                your public id, land, invites
+  ridefollow-cli inbox [-w]                        encounters, stolen tiles, friends joined
   ridefollow-cli invite [redeem <code | link>]     your invite link / use a friend's
   ridefollow-cli room create [name]                start a group ride, get a code
   ridefollow-cli room join|show|watch|leave <code> join / see / follow live / leave
+  ridefollow-cli room pin <code> <lat,lng|clear>   set the group's meeting point
   ridefollow-cli logout                            forget the saved account
 
 OPTIONS
@@ -43,7 +45,7 @@ OPTIONS
   -p, --password <p>  rider password (env RIDEFOLLOW_PASSWORD)   [social]
       --broker <host> broker host[:port] or mqtt(s):// URL      (env RIDEFOLLOW_BROKER)
       --cell          treat the area as a 4-char geohash cell   [nearby/area]
-  -w, --watch         keep the view live until you press q      [nearby/room]
+  -w, --watch         keep the view live until you press q      [nearby/inbox/room]
       --json          print raw JSON for scripts                 [social]
   -h, --help          show this help
   -v, --version       print the version

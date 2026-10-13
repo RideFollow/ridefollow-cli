@@ -15,11 +15,13 @@ import {
   SocialError,
   decodeAreaMeta,
   decodeFeed,
+  decodeInbox,
   decodePin,
   decodePresence,
   decodeRoomPosition,
   formatRoomCode,
   renderBoard,
+  renderInbox,
   renderMe,
   renderNearby,
   renderRoom,
@@ -27,7 +29,7 @@ import {
   socialClient,
 } from './social.js';
 
-export const COMMANDS = ['nearby', 'area', 'me', 'invite', 'room', 'login', 'logout'];
+export const COMMANDS = ['nearby', 'area', 'me', 'inbox', 'invite', 'room', 'login', 'logout'];
 
 const DEFAULT_API = 'https://api.ridefollow.live:8443';
 const SETTLE_MS = 1200; // retained messages arrive in a burst; stop after a quiet gap
@@ -232,6 +234,8 @@ export async function runCommand(cmd, args, opts) {
       return area(acct, args, opts);
     case 'nearby':
       return nearby(acct, args, opts);
+    case 'inbox':
+      return inbox(acct, opts);
     case 'invite':
       return invite(acct, args, opts);
     case 'room':
@@ -301,6 +305,16 @@ async function nearby(acct, args, opts) {
   await runView(client, { watch: opts.watch && !opts.json, draw });
 }
 
+async function inbox(acct, opts) {
+  requireAccount(acct);
+  let events = [];
+  const client = await connectBroker(acct, [`social/${acct.user}/inbox`], (_topic, payload) => {
+    events = decodeInbox(payload);
+  });
+  const draw = () => (opts.json ? json(events) : print(renderInbox(events)));
+  await runView(client, { watch: opts.watch && !opts.json, draw });
+}
+
 async function invite(acct, args, opts) {
   const api = requireAccount(acct);
   const [sub, code] = args;
@@ -342,6 +356,8 @@ async function room(acct, args, opts) {
     case 'watch':
       view = await api.getRoom(needCode());
       break;
+    case 'pin':
+      return pinRoom(acct, api, needCode(), rest.slice(1).join(' '), opts);
     case 'leave': {
       const r = await api.leaveRoom(needCode());
       if (opts.json) return json(r);
@@ -349,7 +365,10 @@ async function room(acct, args, opts) {
       return;
     }
     default:
-      throw new SocialError('usage: ridefollow-cli room <create [name] | join <code> | show <code> | watch <code> | leave <code>>', 0);
+      throw new SocialError(
+        'usage: ridefollow-cli room <create [name] | join <code> | show <code> | watch <code> | pin <code> <lat,lng | clear> | leave <code>>',
+        0,
+      );
   }
   if (sub === 'create' && !opts.json) {
     process.stdout.write(
@@ -391,4 +410,33 @@ async function room(acct, args, opts) {
   const draw = () =>
     opts.json ? json({ room: view, positions: [...positions.values()], pin }) : print(renderRoom({ room: view, positions, pin }));
   await runView(client, { watch: !opts.json, draw });
+}
+
+/** Set (or clear) the group's meeting point — any member may, as in the app. */
+async function pinRoom(acct, api, code, where, opts) {
+  const clear = /^(clear|none|off)$/i.test(where.trim());
+  const ll = where.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!clear && !ll) throw new SocialError('usage: ridefollow-cli room pin <code> <lat,lng | clear>', 0);
+  const lat = ll ? Number(ll[1]) : 0;
+  const lng = ll ? Number(ll[2]) : 0;
+  if (ll && (Math.abs(lat) > 90 || Math.abs(lng) > 180)) throw new SocialError('those coordinates are off the map', 0);
+
+  const view = await api.getRoom(code); // 404 unless I'm a member
+  const mine = (view.members || []).find((m) => view.you && m.pid === view.you.pid);
+  const by = opts.name || process.env.RIDEFOLLOW_NAME || (mine && mine.name) || 'Rider';
+  const topic = `rooms/${view.code}/pin`;
+  const payload = clear ? '' : JSON.stringify({ lat, lng, by });
+
+  // Subscribing first proves the broker has loaded my room grant (it may lag a
+  // just-made join); a refused publish would otherwise vanish silently.
+  const client = await connectBroker(acct, [topic], () => {});
+  await new Promise((resolve, reject) =>
+    client.publish(topic, payload, { qos: 1, retain: true }, (err) => (err ? reject(err) : resolve())),
+  ).finally(() => client.end());
+  if (opts.json) return json(clear ? { pin: null } : { pin: { lat, lng, by } });
+  process.stdout.write(
+    clear
+      ? `Meeting point cleared for ${formatRoomCode(view.code)}.\n`
+      : `Meeting point set for ${formatRoomCode(view.code)}: ${lat.toFixed(5)}, ${lng.toFixed(5)}.\n`,
+  );
 }
